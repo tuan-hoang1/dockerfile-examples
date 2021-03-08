@@ -28,7 +28,7 @@
 # Set gid=0 and make group perms==owner perms
 ################################################################################
 
-FROM s390x/ubuntu:18.04 AS builder
+FROM ubi8 AS builder
 
 ARG ELASTICSEARCH_VER=7.10.1
 
@@ -37,18 +37,20 @@ LABEL maintainer="LoZ Open Source Ecosystem (https://www.ibm.com/community/z/use
 
 ENV LANG="en_US.UTF-8"
 ENV SOURCE_DIR="/tmp/"
-ENV JAVA_HOME=/usr/lib/jvm/java-11-openjdk-s390x
-ENV JAVA11_HOME=/usr/lib/jvm/java-11-openjdk-s390x
+ENV JAVA_HOME=/usr/lib/jvm/java-11-openjdk
+ENV JAVA11_HOME=/usr/lib/jvm/java-11-openjdk
 ENV PATH=$JAVA_HOME/bin:$PATH
 ENV PATCH_URL="https://raw.githubusercontent.com/linux-on-ibm-z/scripts/master/Elasticsearch/${ELASTICSEARCH_VER}/patch"
 
-RUN apt-get update && apt-get install -y \
+RUN echo "Assuming AppStream + BaseOS repos"
+
+RUN yum update --refresh -y && yum install -y \
     curl \
     git \
     gzip \
     tar \
     wget \
-    openjdk-11-jdk
+    java-11-openjdk java-11-openjdk-devel java-11-openjdk-headless
 
 # `tini` is a tiny but valid init for containers. This is used to cleanly
 # control how ES and any child processes are shut down.
@@ -80,7 +82,7 @@ RUN /usr/sbin/groupadd -g 1000 elasticsearch && \
 WORKDIR /usr/share/elasticsearch
 	  
 # Set up locale
-RUN apt-get install -y locales && rm -rf /var/lib/apt/lists/* \
+RUN yum install -y glibc-common glibc-locale-source glibc-langpack-en && yum clean all \
  && localedef -i en_US -c -f UTF-8 -A /usr/share/locale/locale.alias en_US.UTF-8 \
 
 # Download and Build Elasticsearch
@@ -117,16 +119,18 @@ RUN chmod 0660 config/elasticsearch.yml config/log4j2.properties
 # Add entrypoint
 ################################################################################
 
-FROM s390x/ubuntu:18.04
+FROM ubi8
 
-ENV JAVA_HOME=/usr/lib/jvm/java-11-openjdk-s390x
-ENV JAVA11_HOME=/usr/lib/jvm/java-11-openjdk-s390x
+ENV JAVA_HOME=/usr/lib/jvm/java-11-openjdk
+ENV JAVA11_HOME=/usr/lib/jvm/java-11-openjdk
 ENV PATH=$JAVA_HOME/bin:$PATH
 ENV ELASTIC_CONTAINER true
 
 COPY --from=builder /tini /tini
 	
-RUN apt-get update && apt-get install -y gzip bzip2 netcat openjdk-11-jdk
+RUN echo "Assuming AppStream + BaseOS repos"
+
+RUN yum update --refresh -y && yum install -y gzip bzip2 nmap-ncat java-11-openjdk java-11-openjdk-devel java-11-openjdk-headless
 
 RUN /usr/sbin/groupadd -g 1000 elasticsearch && \
     /usr/sbin/useradd --uid 1000 --gid 1000 -G 0 -d /usr/share/elasticsearch elasticsearch
